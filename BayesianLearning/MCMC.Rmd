@@ -1,0 +1,476 @@
+---
+title: "Monte Carlo Markov Chain methods"
+output: html_notebook
+---
+
+## Monte Carlo Approximation
+
+There are a variety of ways to calculate integrals. Monte Carlo approximation is a method based on random sampling for calculating integrals and its implementation does not require a deep knowledge of calculus or numerical analysis.
+    
+    
+Let $\theta$ be a parameter of interest and let $y_1, \ldots , y_n$ be the numerical values of a sample from a distribution $p(y_1, \ldots , y_n|\theta)$. Suppose we could sample some number S of independent, random $\theta$-values from the posterior distribution
+$p(\theta|y_1, \ldots , y_n)$:
+$$ \theta^{(1)}, \ldots, \theta^{(S)} \sim i.i.d \hspace{2mm}p(\theta|y_1, \ldots , y_n). $$
+Then the empirical distribution of the samples $\{\theta^{(1)}, \ldots, \theta^{(S)}\}$ would approximate
+$p(\theta|y_1, \ldots , y_n)$, with the approximation improving with increasing S.
+The empirical distribution of $\{\theta^{(1)}, \ldots, \theta^{(S)}\}$ is known as a \textit{Monte Carlo approximation}
+to $p(\theta|y_1, \ldots , y_n)$.
+
+#### Example: Gamma(68, 45)
+
+```{r}
+
+set.seed(1)
+a<-68 ; b<-45
+set.seed(1)
+theta.support<-seq(0,3,length=100)
+theta.sim10<-rgamma(10,a,b)
+theta.sim100<-rgamma(100,a,b)
+theta.sim1000<-rgamma(1000,a,b)
+
+```
+
+Histograms and kernel density estimates of Monte Carlo approximations to the gamma(68,45) distribution, with the true density in gray.
+```{r}
+
+xlim<-c(.75,2.25)
+ylim=c(0,2.5)
+lty=1
+hist(theta.sim10)
+hist(theta.sim10, prob=T,xlab="", xlim=xlim, ylim=ylim,main="",ylab="")
+lines(theta.support,dgamma(theta.support,a,b),col="gray",lwd=2,lty=lty)
+text(2.1,2.25,expression(paste(italic(S),"=10",sep="")))
+
+hist( theta.sim100, prob=T,xlim=xlim,ylim=ylim,xlab="",main="" ,ylab="")
+lines(theta.support,dgamma(theta.support,a,b),col="gray",lwd=2,lty=lty)
+text(2.1,2.25,expression(paste(italic(S),"=100",sep="")))
+
+
+
+hist( theta.sim1000, prob=T,xlim=xlim,ylim=ylim,xlab="",main="" ,ylab="")
+lines(theta.support,dgamma(theta.support,a,b),col="gray",lwd=2,lty=lty)
+text(2.1,2.25,expression(paste(italic(S),"=1000",sep="")))
+
+
+plot(density(theta.sim10),xlim=xlim,ylim=ylim,xlab=expression(theta),main="",ylab="")
+lines(theta.support,dgamma(theta.support,a,b),col="gray",lwd=2,lty=lty)
+
+plot(density(theta.sim100),xlim=xlim,ylim=ylim,xlab=expression(theta),main="",ylab="")
+lines(theta.support,dgamma(theta.support,a,b),col="gray",lwd=2,lty=lty)
+
+plot(density(theta.sim1000),xlim=xlim,ylim=ylim,xlab=expression(theta),main="",ylab="")
+lines(theta.support,dgamma(theta.support,a,b),col="gray",lwd=2,lty=lty)
+
+```
+
+### Example: Poisson-Gamma
+
+Suppose we model
+$Y_1, \ldots , Y_n|\theta$ as i.i.d. $Poisson(\theta)$, and have a $Gamma(a, b)$ prior distribution for
+$\theta$. Having observed $Y_1 = y_1, \ldots , Y_n = y_n$, the posterior distribution is $Gamma(a+\sum y_i, b+n)$. We set $(a = 2, b = 1)$ and $(\sum y_i = 66, n = 44)$.
+
+Expectation: The posterior mean is $(a+\sum y_i)/(b+n) = 68/45 = 1.51$.
+```{r}
+set.seed(1)
+a<-2  ; b<-1
+sy<-66; n<-44
+
+theta.sim10<-rgamma(10,a+sy,b+n)
+theta.sim100<-rgamma(100,a+sy,b+n)
+theta.sim1000<-rgamma(1000,a+sy,b+n)
+
+(a+sy)/(b+n) 
+
+mean(theta.sim10)
+mean(theta.sim100)
+mean(theta.sim1000)
+```
+
+The posterior probability that ${\theta < 1.75}$ can be obtained to a
+high degree of precision in R with the command $pgamma(1.75,a+sy,b+n)$,
+which yields 0.8998. Using the simulated values of $\theta$ from above, the corresponding
+Monte Carlo approximations were:
+```{r}
+pgamma(1.75,a+sy,b+n)
+
+mean( theta.sim10<1.75)
+mean( theta.sim100<1.75)
+mean( theta.sim1000<1.75)
+```
+95\% quantile-based confidence region can be obtained with
+$qgamma(c(.025,.975),a+sy,b+n)$ , giving an interval of (1.173,1.891). Approximate
+95\% confidence regions can also be obtained from the Monte
+Carlo samples:
+
+```{r}
+qgamma(c(.025,.975),a+sy,b+n)
+quantile( theta.sim10, c(.025,.975))
+quantile( theta.sim100, c(.025,.975))
+quantile( theta.sim1000, c(.025,.975))
+```
+
+We can show the convergence of the Monte Carlo estimates to the correct
+values graphically, based on cumulative estimates from a sequence of
+S = 1000 samples from the $Gamma(68,45)$ distribution. Such plots can help
+indicate when enough Monte Carlo samples have been made. Additionally,
+Monte Carlo standard errors can be obtained to assess the accuracy of approximations
+to posterior means: 
+
+Letting $\bar{\theta} =\sum_{s=1}^S \theta^{(s)}/S$ be the sample mean of
+the Monte Carlo samples, the Central Limit Theorem says that $\bar{\theta}$ is approximately
+normally distributed with expectation $E[\theta|y_1, \ldots, y_n]$ and standard deviation
+equal to $\sqrt(Var[\theta|y_1, \ldots, y_n]/S)$. The Monte Carlo standard error is the
+approximation to this standard deviation: Letting $\sigma^2 =P(\theta^{(s)} - \bar{\theta})^2/(S - 1)$
+be the Monte Carlo estimate of $Var[\theta|y_1, \ldots, y_n]$, the Monte Carlo standard
+error is $\sqrt{\sigma^2/S}$. An approximate 95\% Monte Carlo confidence interval for the posterior mean of $\theta$ is $\hat{\theta} ± 2 \sqrt{\sigma^2/S}$. Standard practice is to choose S to be
+large enough so that the Monte Carlo standard error is less than the precision
+to which you want to report $E[\theta|y_1, \ldots, y_n]$. For example, suppose you
+had generated a Monte Carlo sample of size S = 100 for which the estimate
+of $Var[\theta|y_1, \ldots, y_n]$ was 0.024. The approximate Monte Carlo standard error
+would then be $\sqrt{0.024/100} = 0.015$. If you wanted the difference between
+$E[\theta|y_1, \ldots, y_n]$ and its Monte Carlo estimate to be less than 0.01 with high
+probability, you would need to increase your Monte Carlo sample size so that
+$\sqrt{0.024/S} < 0.01$, i.e. $S > 960$.
+
+
+Estimates of the posterior mean, $Pr(\theta < 1.75|y_1, \ldots, y_n)$ and the 97.5%
+posterior quantile as a function of the number of Monte Carlo samples. Horizontal
+gray lines are the true values.
+
+```{r}
+set.seed(1)
+a<-2   ; b<-1
+sy<-66 ; n<-44
+
+nsim<-1000
+theta.sim<-rgamma(nsim,a+sy,b+n)
+
+#cumulative mean
+
+cmean<-cumsum(theta.sim)/(1:nsim)
+cvar<- cumsum(theta.sim^2)/(1:nsim) - cmean^2
+ccdf<- cumsum(theta.sim<1.75)/ (1:nsim)
+cq<-NULL
+for(j in 1:nsim){ cq<-c(cq,quantile(theta.sim[1:j],probs=0.975)) }
+
+sseq<- c(1,(1:100)*(nsim/100))
+cmean<-cmean[sseq] 
+cq<-cq[sseq] 
+ccdf<-ccdf[sseq] 
+
+plot(sseq,cmean,type="l",xlab="# of Monte Carlo samples",ylab="cumulative mean",
+     col="black")
+abline(h= (a+sy)/(b+n),col="gray",lwd=2)
+
+plot(sseq,ccdf,type="l",xlab="# of Monte Carlo samples",ylab="cumulative cdf at 1.75",col="black")
+abline(h= pgamma(1.75,a+sy,b+n),col="gray",lwd=2)
+
+plot(sseq,cq,type="l",xlab="# of Monte Carlo samples",ylab="cumulative 97.5% quantile",col="black")
+abline(h= qgamma(.975,a+sy,b+n),col="gray",lwd=2)
+
+```
+
+## MCMC 
+
+The purpose of Markov chain Monte Carlo approximation is
+to obtain a sequence of parameter values $\{\phi^{(1)}, \ldots ,\phi^{(S)}\}$ such that
+
+$$\frac{1}{S} \sum_{s=1}^S g(\phi^{(s)}) \approx \int g(\phi)p(\phi)d\phi$$
+for any functions g of interest.
+In other words, we want the empirical average
+of $\{g(\phi^{(1)}), \ldots , g(\phi^{(S)})\}$ to approximate the expected value of $g(\phi)$ under a
+target probability distribution $p(\phi)$ (in Bayesian inference, the target distribution
+is usually the posterior distribution).
+
+## Gibbs Sampler
+
+For many multiparameter models the joint posterior distribution is nonstandard
+and difficult to sample from directly. However, it is often the case
+that it is easy to sample from the full conditional distribution of each parameter.
+In such cases, posterior approximation can be made with the Gibbs
+sampler, an iterative algorithm that constructs a dependent sequence of parameter
+values whose distribution converges to the target joint posterior distribution.
+
+
+Consider the “semiconjugate” prior distribution:
+$$\theta \sim Normal(\mu_0, \tau^2_0 )$$
+$$1/\sigma^2 \sim Gamma(\nu_0/2, \sigma^2_0/2).$$
+
+If ${Y_1, \ldots , Y_n|\theta, \sigma^2} \sim i.i.d. Normal(\theta, \sigma^2)$, we know that
+${\theta|\sigma^2, y_1, \ldots , y_n} \sim Normal(\mu_n, \tau^2_n)$.
+In the conjugate case where $\tau^2_0$ was proportional to $\sigma^2$, we showed that
+$p(\sigma^2|y_1, \ldots , y_n)$ was an inverse-gamma distribution, and that a Monte Carlo
+sample of ${\theta, \sigma^2}$ from their joint posterior distribution could be obtained by
+sampling:
+
+1. a value $\sigma^{2(s)}$ from $p(\sigma^2|y_1, \ldots , y_n)$, an inverse-gamma distribution, then
+2. a value $\theta^{(s)}$ from $p(\theta|\sigma^{2(s)}, y_1, \ldots , y_n)$, a normal distribution.
+
+However, in the case where $\tau^2_0$ is not proportional to $\sigma^2$, the marginal density
+of $1/\sigma^2$ is \underline{not} a $Gamma$ distribution, or any other standard distribution from which we can easily sample.
+
+### Discrete Approximation
+
+Letting $\tilde{\sigma}^2 = 1/\sigma^2$ be the precision, recall that the posterior distribution
+of ${\theta, \tilde{\sigma}^2}$ is equal to the joint distribution of ${\theta, \sigma^2, y_1, \ldots , y_n}$, divided by
+$p(y_1, \ldots, y_n)$, which does not depend on the parameters. The joint distribution is easy to compute as it was built out of standard prior
+and sampling distributions. A discrete approximation to the posterior distribution makes use of these
+facts by constructing a posterior distribution over a grid of parameter values,
+based on relative posterior probabilities. This is done by evaluating
+$p(\theta, \tilde{\sigma}^2, y_1, \ldots , y_n)$ on a two-dimensional grid of values of ${\theta, \tilde{\sigma}^2}$.
+
+Evaluation of this two-parameter posterior distribution at 100 values of
+each parameter required a grid of size $100\times 100 = 100^2$. In general, to construct
+a similarly fine approximation for a p-dimensional posterior distribution we
+would need a p-dimensional grid containing $100^p$ posterior probabilities. This
+means that discrete approximations will only be feasible for densities having
+a small number of parameters.
+
+### Sampling from the conditional distributions - Gibbs Sampling
+
+The distributions $p(\theta|\sigma^2, y_1, \ldots , y_n)$ and $p(\sigma^2|\theta, y_1, \ldots , y_n)$ are called the full
+conditional distributions of $\theta$ and $\sigma^2$ respectively, as they are each a conditional distribution of a parameter given everything else. 
+
+Given a current state of the parameters $\phi^{(s)} = \{\theta^{(s)}, \tilde{\sigma}^{2(s)}\}$, we generate a new state as follows:
+
+1. sample $\theta^{(s+1)} \sim p(\theta|\tilde{\sigma}^{2(s)}, y_1, \ldots , y_n)$;
+2. sample $\tilde{\sigma}^{2(s+1)} \sim p(\tilde{\sigma}^{2}|\theta^{(s+1)}, y_1, \ldots , y_n)$;
+3. let $\phi^{(s+1)} = \{\theta^{(s+1)}, \tilde{\sigma}^{2(s+1)}\}$.
+
+This algorithm is called the Gibbs sampler, and generates a dependent sequence of our parameters $\{\phi^{(1)},\phi^{(2)}, . . . ,\phi^{(S)}\}$.
+
+
+```{r}
+mu0<-1.9 ; t20 <-0.95^2 ; s20<-.01 ; nu0<-1
+y<-c (1.64 ,1.70 ,1.72 ,1.74 ,1.82 ,1.82 ,1.82 ,1.90 ,2.08)
+
+G<-100 ; H<-100
+mean.grid<-seq (1.505 ,2.00 , length=G)
+prec.grid<-seq (1.75 ,175 , length=H)
+post.grid<-matrix (nrow=G, ncol=H)
+for(g in 1:G) {
+  for(h in 1:H) {
+  post.grid[ g , h]<- dnorm(mean.grid[ g ] , mu0, sqrt( t20 ) ) * dgamma( prec.grid[ h ] , nu0 /2 , s20 *nu0/2 ) * prod (dnorm(y , mean.grid[ g ] ,1/ sqrt( prec.grid[ h ] ) ) )
+}}
+post.grid<-post.grid /sum( post.grid )
+
+mean.post<- apply(post.grid,1,sum)
+par(mfrow=c(1,3))
+image( mean.grid,prec.grid,post.grid,col=gray( (10:0)/10 ),
+     xlab=expression(theta), ylab=expression(tilde(sigma)^2) )
+plot(mean.grid,mean.post, main= "Discrete approximation", type="l",xlab=expression(theta),
+ ylab=expression( paste(italic("p("),
+     theta,"|",italic(y[1]),"...",italic(y[n]),")",sep="")))
+
+prec.post<-apply(post.grid,2,sum)
+plot(prec.grid,prec.post,type="l",xlab=expression(tilde(sigma)^2),
+     ylab=expression( paste(italic("p("),
+     tilde(sigma)^2,"|",italic(y[1]),"...",italic(y[n]),")",sep=""))) 
+par(mfrow=c(1,1))
+```
+
+#### Gibbs sampler
+```{r}
+### data
+mean.y<-mean( y ) ; var.y<-var (y) ; n<-length (y)
+## starting values
+set.seed(1)
+S<-1000
+PHI<-matrix(nrow=S,ncol=2)
+PHI[1,]<-phi<-c( mean.y, 1/var.y)
+
+## Gibbs sampling algorithm
+for(s in 2:S) {
+
+# generate a new theta value from its full conditional
+mun<-  ( mu0/t20 + n*mean.y*phi[2] ) / ( 1/t20 + n*phi[2] )
+t2n<- 1/( 1/t20 + n*phi[2] )
+phi[1]<-rnorm(1, mun, sqrt(t2n) )
+
+# generate a new sigma^2 value from its full conditional
+nun<- nu0+n
+s2n<- (nu0*s20 + (n-1)*var.y + n*(mean.y-phi[1])^2 ) /nun
+phi[2]<- rgamma(1, nun/2, nun*s2n/2)
+
+PHI[s,]<-phi         }
+```
+
+The first 5, 15 and 100 iterations of a Gibbs sampler.
+
+```{r}
+par(mfrow=c(1,3),mar=c(2.75,2.75,.5,.5),mgp=c(1.70,.70,0))
+m1<-5
+plot( PHI[1:m1,],type="l",xlim=range(PHI[1:100,1]), ylim=range(PHI[1:100,2]),
+       lty=1,col="gray",xlab=expression(theta),ylab=expression(tilde(sigma)^2))
+text(  PHI[1:m1,1], PHI[1:m1,2], c(1:m1) )
+
+m1<-15
+plot( PHI[1:m1,],type="l",xlim=range(PHI[1:100,1]), ylim=range(PHI[1:100,2]),
+       lty=1,col="gray",xlab=expression(theta),ylab=expression(tilde(sigma)^2))
+text(  PHI[1:m1,1], PHI[1:m1,2], c(1:m1) )
+
+m1<-100
+plot( PHI[1:m1,],type="l",xlim=range(PHI[1:100,1]), ylim=range(PHI[1:100,2]),
+       lty=1,col="gray",xlab=expression(theta),ylab=expression(tilde(sigma)^2))
+text(  PHI[1:m1,1], PHI[1:m1,2], c(1:m1) )
+
+```
+
+Empirical quantiles of our Gibbs samples
+```{r}
+#### Posterior quantiles
+# CI for the population mean
+quantile(PHI[,1],c(.025,.5,.975))
+# CI for the population precision
+quantile(PHI[,2],c(.025,.5, .975))
+# CI for population standard deviation
+quantile(1/sqrt(PHI[,2]),c(.025,.5, .975))
+
+```
+
+
+The first panel shows 1000 samples from the Gibbs sampler, plotted over
+the contours of the discrete approximation. The second and third panels give kernel
+density estimates to the distributions of Gibbs samples of \theta and $\tilde{\sigma}^2$. Vertical gray
+bars on the second plot indicate 2.5% and 97.5% quantiles of the Gibbs samples
+of \theta, while nearly identical black vertical bars indicate the 95% confidence interval
+based on the t-test.
+```{r}
+par(mfrow=c(1,3),mar=c(2.75,2.75,.5,.5),mgp=c(1.70,.70,0))
+sseq<-1:1000
+
+
+image( mean.grid,prec.grid,post.grid,col=gray( (10:0)/10 ),
+     xlab=expression(theta), ylab=expression(tilde(sigma)^2) ,
+     xlim=range(PHI[,1]),ylim=range(PHI[,2]) )
+points(PHI[sseq,1],PHI[sseq,2],pch=".",cex=1.25 )
+
+plot(density(PHI[,1],adj=2),  xlab=expression(theta),main="",
+     xlim=c(1.55,2.05),
+ ylab=expression( paste(italic("p("),
+     theta,"|",italic(y[1]),"...",italic(y[n]),")",sep="")))
+abline(v=quantile(PHI[,1],prob=c(.025,.975)),lwd=2,col="gray")
+
+## t-test based confidence interval
+n<-length(y) ; ybar<-mean(y) ; s2<-var(y)
+ybar+qt( c(.025,.975), n-1) *sqrt(s2/n)
+abline( v= ybar+qt( c(.025,.975), n-1) *sqrt(s2/n), col="black",lwd=1)
+
+plot(density(PHI[,2],adj=2), xlab=expression(tilde(sigma)^2),main="",
+     ylab=expression( paste(italic("p("),
+     tilde(sigma)^2,"|",italic(y[1]),"...",italic(y[n]),")",sep=""))) 
+```
+
+## Metropolis Hastings
+
+When conjugate or semiconjugate prior distributions are used, the posterior
+distribution can be approximated with the Monte Carlo method or the Gibbs
+sampler. In situations where a conjugate prior distribution is unavailable or
+undesirable, the full conditional distributions of the parameters do not have
+a standard form and the Gibbs sampler cannot be easily used. The Metropolis-Hastings algorithm is a generic method of approximating
+the posterior distribution corresponding to any combination of prior
+distribution and sampling model.
+
+Let’s consider a very generic situation where we have a sampling model
+$Y \sim p(y|\theta)$ and a prior distribution $p(\theta)$. Although in most problems
+$p(y|\theta)$ and $p(\theta)$ can be calculated for any values of $y$ and $\theta$, $p(\theta|y)=p(\theta)p(y|\theta)/\int p(\theta')p(y|\theta') d\theta'$ is often hard to calculate due to the integral
+in the denominator. If we were able to sample from $p(\theta|y)$, then we could
+generate $\theta^{(1)}, \ldots , \theta^{(S)} \sim i.i.d. p(\theta|y)$ and obtain Monte Carlo approximations to posterior quantities, but what if we cannot sample directly from $p(\theta|y)$? We can use a Metropolis Hasting algorithm.
+
+Now we want to generate 10000 iterations of the Metropolis algorithm,
+starting at $\theta^{(0)} = 0$ and using a normal proposal distribution, $\theta^{(s+1)} \sim Normal
+(\theta^{(s)}, \delta^2)$ with known variance $\delta^2 = 2$.
+
+```{r}
+#### MH algorithm for one-sample normal problem with 
+
+## Setup
+s2<-1 
+t2<-10 ; mu<-5
+
+set.seed(1)
+n<-5
+y<-round(rnorm(n,10,1),2)
+
+mu.n<-( mean(y)*n/s2 + mu/t2 )/( n/s2+1/t2) 
+t2.n<-1/(n/s2+1/t2)
+
+## MCMC
+s2<-1 ; t2<-10 ; mu<-5 
+y<-c(9.37, 10.18, 9.16, 11.60, 10.33)
+theta<-0 ; delta<-2 ; S<-10000 ; THETA<-NULL ; set.seed(1)
+
+for(s in 1:S)
+{
+
+  theta.star<-rnorm(1,theta,sqrt(delta))
+
+  log.r<-( sum(dnorm(y,theta.star,sqrt(s2),log=TRUE)) +
+               dnorm(theta.star,mu,sqrt(t2),log=TRUE) )  -
+         ( sum(dnorm(y,theta,sqrt(s2),log=TRUE)) +
+               dnorm(theta,mu,sqrt(t2),log=TRUE) ) 
+
+  if(log(runif(1))<log.r) { theta<-theta.star }
+
+  THETA<-c(THETA,theta)
+
+}
+```
+Results from the Metropolis algorithm for the normal model.
+
+```{r}
+par(mar=c(3,3,1,1),mgp=c(1.75,.75,0))
+par(mfrow=c(1,2))
+
+skeep<-seq(10,S,by=10)
+plot(skeep,THETA[skeep],type="l",xlab="iteration",ylab=expression(theta))
+
+hist(THETA[-(1:50)],prob=TRUE,main="",xlab=expression(theta),ylab="density")
+th<-seq(min(THETA),max(THETA),length=100)
+lines(th,dnorm(th,mu.n,sqrt(t2.n)) )
+```
+
+Markov chains under three different proposal distributions. Going from
+left to right, the values of $\delta^2$ are 1/32, 2 and 64 respectively.
+```{r}
+#### MH algorithm with different proposal distributions
+
+ACR<-ACF<-NULL
+THETAA<-NULL
+for(delta2 in 2^c(-5,-1,1,5,7) ) {
+set.seed(1)
+THETA<-NULL
+S<-10000
+theta<-0
+acs<-0
+delta<-2
+
+for(s in 1:S) 
+{
+
+  theta.star<-rnorm(1,theta,sqrt(delta2))
+  log.r<-sum( dnorm(y,theta.star,sqrt(s2),log=TRUE)-
+              dnorm(y,theta,sqrt(s2),log=TRUE)  )  +
+      dnorm(theta.star,mu,sqrt(t2),log=TRUE)-dnorm(theta,mu,sqrt(t2),log=TRUE) 
+
+  if(log(runif(1))<log.r)  { theta<-theta.star ; acs<-acs+1 }
+  THETA<-c(THETA,theta) 
+
+}
+#plot(THETA[1:1000])
+
+#ACR<-c(ACR,acs/s) 
+#ACF<-c(ACF,acf(THETA,plot=FALSE)$acf[2]  )
+THETAA<-cbind(THETAA,THETA)
+}
+#plot(ACR,ACF) ; lines(ACR,ACF)
+
+par(mfrow=c(1,3),mar=c(2.75,2.75,.5,.5),mgp=c(1.7,.7,0))
+laby<-c(expression(theta),"","","","")
+
+for(k in c(1,3,5)) {
+plot(THETAA[1:500,k],type="l",xlab="iteration",ylab=laby[k], 
+    ylim=range(THETAA) )
+abline(h=mu.n,lty=2)
+                  }
+```
